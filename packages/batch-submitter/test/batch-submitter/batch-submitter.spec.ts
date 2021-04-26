@@ -18,6 +18,8 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
+  OVM_TX_GAS_LIMIT,
+  MIN_ROLLUP_TX_GAS,
   getContractFactory,
 } from '../helpers'
 import {
@@ -90,7 +92,6 @@ describe('BatchSubmitter', () => {
   let AddressManager: Contract
   let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_BondManager: MockContract
-  let Mock__OVM_StateCommitmentChain: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
@@ -110,10 +111,6 @@ describe('BatchSubmitter', () => {
       await getContractFactory('OVM_BondManager')
     )
 
-    Mock__OVM_StateCommitmentChain = await smockit(
-      await getContractFactory('OVM_StateCommitmentChain')
-    )
-
     await setProxyTarget(
       AddressManager,
       'OVM_ExecutionManager',
@@ -126,22 +123,20 @@ describe('BatchSubmitter', () => {
       Mock__OVM_BondManager
     )
 
-    await setProxyTarget(
-      AddressManager,
-      'OVM_StateCommitmentChain',
-      Mock__OVM_StateCommitmentChain
-    )
-
-    Mock__OVM_StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
     Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
       MAX_GAS_LIMIT
     )
     Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
   })
 
+  let Factory__OVM_CTC_Container: ContractFactory
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
   let Factory__OVM_StateCommitmentChain: ContractFactory
   before(async () => {
+    Factory__OVM_CTC_Container = await getContractFactory(
+      'OVM_ChainStorageContainer'
+    )
+
     Factory__OVM_CanonicalTransactionChain = await getContractFactory(
       'OVM_CanonicalTransactionChain'
     )
@@ -155,11 +150,30 @@ describe('BatchSubmitter', () => {
   let OVM_StateCommitmentChain: Contract
   let l2Provider: MockchainProvider
   beforeEach(async () => {
+    const queueContainer = await Factory__OVM_CTC_Container.deploy(
+      AddressManager.address,
+      'OVM_CanonicalTransactionChain'
+    )
+    await AddressManager.setAddress(
+      'OVM_ChainStorageContainer:CTC:queue',
+      queueContainer.address
+    )
+
+    const batchesContainer = await Factory__OVM_CTC_Container.deploy(
+      AddressManager.address,
+      'OVM_CanonicalTransactionChain'
+    )
+    await AddressManager.setAddress(
+      'OVM_ChainStorageContainer:CTC:batches',
+      batchesContainer.address
+    )
+
     const unwrapped_OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      Math.ceil(FORCE_INCLUSION_PERIOD_SECONDS / 15),
+      OVM_TX_GAS_LIMIT
     )
-    await unwrapped_OVM_CanonicalTransactionChain.init()
 
     await AddressManager.setAddress(
       'OVM_CanonicalTransactionChain',
@@ -168,7 +182,7 @@ describe('BatchSubmitter', () => {
 
     OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
       unwrapped_OVM_CanonicalTransactionChain.address,
-      getContractInterface('OVM_CanonicalTransactionChain'),
+      unwrapped_OVM_CanonicalTransactionChain.interface,
       sequencer
     )
 
@@ -178,8 +192,6 @@ describe('BatchSubmitter', () => {
       0 // sequencerPublishWindowSeconds
     )
 
-    await unwrapped_OVM_StateCommitmentChain.init()
-
     await AddressManager.setAddress(
       'OVM_StateCommitmentChain',
       unwrapped_OVM_StateCommitmentChain.address
@@ -187,7 +199,7 @@ describe('BatchSubmitter', () => {
 
     OVM_StateCommitmentChain = new Contract(
       unwrapped_OVM_StateCommitmentChain.address,
-      getContractInterface('OVM_StateCommitmentChain'),
+      unwrapped_OVM_StateCommitmentChain.interface,
       sequencer
     )
 
@@ -234,7 +246,7 @@ describe('BatchSubmitter', () => {
         for (let i = 1; i < 15; i++) {
           await OVM_CanonicalTransactionChain.enqueue(
             '0x' + '01'.repeat(20),
-            50_000,
+            MIN_ROLLUP_TX_GAS,
             '0x' + i.toString().repeat(64),
             {
               gasLimit: 1_000_000,
@@ -388,7 +400,7 @@ describe('BatchSubmitter', () => {
       for (let i = 1; i < 15; i++) {
         await OVM_CanonicalTransactionChain.enqueue(
           '0x' + '01'.repeat(20),
-          50_000,
+          MIN_ROLLUP_TX_GAS,
           '0x' + i.toString().repeat(64),
           {
             gasLimit: 1_000_000,

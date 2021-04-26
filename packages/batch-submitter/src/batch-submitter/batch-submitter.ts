@@ -3,7 +3,7 @@ import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import * as ynatm from '@eth-optimism/ynatm'
 import { RollupInfo, Logger, Metrics } from '@eth-optimism/core-utils'
-import { getContractFactory } from 'old-contracts'
+import { getContractFactory } from '@eth-optimism/contracts'
 
 export interface Range {
   start: number
