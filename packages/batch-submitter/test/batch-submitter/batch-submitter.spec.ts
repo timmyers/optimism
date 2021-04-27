@@ -149,7 +149,8 @@ describe('BatchSubmitter', () => {
   let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
   let OVM_StateCommitmentChain: Contract
   let l2Provider: MockchainProvider
-  beforeEach(async () => {
+
+  const deployContracts = async () => {
     const queueContainer = await Factory__OVM_CTC_Container.deploy(
       AddressManager.address,
       'OVM_CanonicalTransactionChain'
@@ -207,11 +208,36 @@ describe('BatchSubmitter', () => {
       OVM_CanonicalTransactionChain.address,
       OVM_StateCommitmentChain.address
     )
-  })
+  }
 
-  afterEach(() => {
-    sinon.restore()
-  })
+  const generateL2Chain = async (chain) => {
+    for (let i = 0; i < chain.length; i++) {
+      const tx = chain[i]
+
+      if (tx.queueOrigin === QueueOrigin.L1ToL2) {
+        await OVM_CanonicalTransactionChain.enqueue(
+          '0x' + '01'.repeat(20),
+          MIN_ROLLUP_TX_GAS,
+          '0x' + i.toString().repeat(64),
+          {
+            gasLimit: 1_000_000,
+          }
+        )
+        const l1Block = await signer.provider.getBlock('latest')
+        l2Provider.setL2BlockTx(
+          i,
+          {
+            ...tx,
+            l1BlockNumber: l1Block.number,
+          },
+          l1Block.timestamp
+        ) // maybe timestamp unnecessary
+        continue
+      }
+
+      l2Provider.setL2BlockTx(i, tx)
+    }
+  }
 
   const createBatchSubmitter = (timeout: number): TransactionBatchSubmitter =>
     new TransactionBatchSubmitter(
@@ -234,197 +260,168 @@ describe('BatchSubmitter', () => {
       false
     )
 
-  describe('TransactionBatchSubmitter', () => {
-    describe('submitNextBatch', () => {
-      const enqueuedElements: Array<{
-        blockNumber: number
-        timestamp: number
-      }> = []
+  describe('Submit transaction batch', () => {
+    const enqueuedElements: Array<{
+      blockNumber: number
+      timestamp: number
+    }> = []
 
-      let batchSubmitter
-      beforeEach(async () => {
-        for (let i = 1; i < 15; i++) {
-          await OVM_CanonicalTransactionChain.enqueue(
-            '0x' + '01'.repeat(20),
-            MIN_ROLLUP_TX_GAS,
-            '0x' + i.toString().repeat(64),
-            {
-              gasLimit: 1_000_000,
-            }
-          )
-        }
-        batchSubmitter = createBatchSubmitter(0)
-      })
-
-      it('should submit a sequencer batch correctly', async () => {
-        l2Provider.setNumBlocksToReturn(5)
-        const nextQueueElement = await getQueueElement(
-          OVM_CanonicalTransactionChain
-        )
-        l2Provider.setL2BlockData(
-          {
-            rawTransaction: '0x1234',
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.EIP155,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: null,
-          } as any,
-          nextQueueElement.timestamp - 1
-        )
-        let receipt = await batchSubmitter.submitNextBatch()
-        let logData = remove0x(receipt.logs[1].data)
-        expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-        expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
-        expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
-        receipt = await batchSubmitter.submitNextBatch()
-        logData = remove0x(receipt.logs[1].data)
-        expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-        expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
-        expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
-      })
-
-      it('should submit a queue batch correctly', async () => {
-        l2Provider.setNumBlocksToReturn(5)
-        l2Provider.setL2BlockData({
-          queueOrigin: QueueOrigin.L1ToL2,
-        } as any)
-        let receipt = await batchSubmitter.submitNextBatch()
-        let logData = remove0x(receipt.logs[1].data)
-        expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-        expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(6) // _numQueueElements
-        expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
-        receipt = await batchSubmitter.submitNextBatch()
-        logData = remove0x(receipt.logs[1].data)
-        expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(6) // _startingQueueIndex
-        expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
-        expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
-      })
-
-      it('should submit a batch with both queue and sequencer chain elements', async () => {
-        l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
-        l2Provider.setL2BlockData({
-          queueOrigin: QueueOrigin.L1ToL2,
-        } as any)
-        // Turn blocks 3-5 into sequencer txs
-        const nextQueueElement = await getQueueElement(
-          OVM_CanonicalTransactionChain,
-          2
-        )
-        l2Provider.setL2BlockData(
-          {
-            rawTransaction: '0x1234',
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.EthSign,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: null,
-          } as any,
-          nextQueueElement.timestamp - 1,
-          '', // blank stateRoot
-          3,
-          6
-        )
-        const receipt = await batchSubmitter.submitNextBatch()
-        const logData = remove0x(receipt.logs[1].data)
-        expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-        expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(8) // _numQueueElements
-        expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
-      })
-
-      it('should submit a small batch only after the timeout', async () => {
-        l2Provider.setNumBlocksToReturn(2)
-        l2Provider.setL2BlockData({
-          queueOrigin: QueueOrigin.L1ToL2,
-        } as any)
-
-        // Create a batch submitter with a long timeout & make sure it doesn't submit the batches one after another
-        const longTimeout = 10_000
-        batchSubmitter = createBatchSubmitter(longTimeout)
-        let receipt = await batchSubmitter.submitNextBatch()
-        expect(receipt).to.not.be.undefined
-        receipt = await batchSubmitter.submitNextBatch()
-        // The receipt should be undefined because that means it didn't submit
-        expect(receipt).to.be.undefined
-
-        // This time create a batch submitter with a short timeout & it should submit batches after the timeout is reached
-        const shortTimeout = 5
-        batchSubmitter = createBatchSubmitter(shortTimeout)
-        receipt = await batchSubmitter.submitNextBatch()
-        expect(receipt).to.not.be.undefined
-        // Sleep for the short timeout
-        await new Promise((r) => setTimeout(r, shortTimeout))
-        receipt = await batchSubmitter.submitNextBatch()
-        // The receipt should NOT be undefined because that means it successfully submitted!
-        expect(receipt).to.not.be.undefined
-      })
-
-      it('should not submit if gas price is over threshold', async () => {
-        l2Provider.setNumBlocksToReturn(2)
-        l2Provider.setL2BlockData({
-          queueOrigin: QueueOrigin.L1ToL2,
-        } as any)
-
-        const highGasPriceWei = BigNumber.from(200).mul(1_000_000_000)
-
-        sinon
-          .stub(sequencer, 'getGasPrice')
-          .callsFake(async () => highGasPriceWei)
-
-        const receipt = await batchSubmitter.submitNextBatch()
-        expect(sequencer.getGasPrice).to.have.been.calledOnce
-        expect(receipt).to.be.undefined
-      })
-
-      it('should submit if gas price is not over threshold', async () => {
-        l2Provider.setNumBlocksToReturn(2)
-        l2Provider.setL2BlockData({
-          queueOrigin: QueueOrigin.L1ToL2,
-        } as any)
-
-        const lowGasPriceWei = BigNumber.from(2).mul(1_000_000_000)
-
-        sinon
-          .stub(sequencer, 'getGasPrice')
-          .callsFake(async () => lowGasPriceWei)
-
-        const receipt = await batchSubmitter.submitNextBatch()
-        expect(sequencer.getGasPrice).to.have.been.calledOnce
-        expect(receipt).to.not.be.undefined
-      })
-    })
-  })
-
-  describe('StateBatchSubmitter', () => {
-    let txBatchSubmitter
-    let stateBatchSubmitter
+    let batchSubmitter
     beforeEach(async () => {
-      for (let i = 1; i < 15; i++) {
-        await OVM_CanonicalTransactionChain.enqueue(
-          '0x' + '01'.repeat(20),
-          MIN_ROLLUP_TX_GAS,
-          '0x' + i.toString().repeat(64),
-          {
-            gasLimit: 1_000_000,
-          }
-        )
+      await deployContracts()
+      batchSubmitter = createBatchSubmitter(0)
+    })
+
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    it('should submit a sequencer batch correctly', async () => {
+      const sequencerTx = {
+        rawTransaction: '0x1234',
+        txType: TxType.EIP155,
+        queueOrigin: QueueOrigin.Sequencer,
+        l1TxOrigin: null,
       }
-
-      txBatchSubmitter = createBatchSubmitter(0)
-
+      const chain = Array(11).fill(sequencerTx)
       l2Provider.setNumBlocksToReturn(5)
+      await generateL2Chain(chain)
+
+      let receipt = await batchSubmitter.submitNextBatch()
+      let logData = remove0x(receipt.logs[1].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
+      receipt = await batchSubmitter.submitNextBatch()
+      logData = remove0x(receipt.logs[1].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
+    })
+
+    it('should submit a queue batch correctly', async () => {
+      const queueTx = {
+        QueueOrigin: QueueOrigin.L1ToL2,
+      }
+      const chain = Array(11).fill(queueTx)
+      await generateL2Chain(chain)
+      l2Provider.setNumBlocksToReturn(5)
+
+      let receipt = await batchSubmitter.submitNextBatch()
+      let logData = remove0x(receipt.logs[1].data)
+      console.log(receipt)
+      // console.log(await getQueueElement(OVM_CanonicalTransactionChain))
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(6) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
+      receipt = await batchSubmitter.submitNextBatch()
+      logData = remove0x(receipt.logs[1].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(6) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
+    })
+
+    it('should submit a batch with both queue and sequencer chain elements', async () => {
+      l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
+      l2Provider.setL2BlockData({
+        queueOrigin: QueueOrigin.L1ToL2,
+      } as any)
+      // Turn blocks 3-5 into sequencer txs
       const nextQueueElement = await getQueueElement(
-        OVM_CanonicalTransactionChain
+        OVM_CanonicalTransactionChain,
+        2
       )
       l2Provider.setL2BlockData(
         {
           rawTransaction: '0x1234',
           l1BlockNumber: nextQueueElement.blockNumber - 1,
-          txType: TxType.EIP155,
+          txType: TxType.EthSign,
           queueOrigin: QueueOrigin.Sequencer,
           l1TxOrigin: null,
         } as any,
         nextQueueElement.timestamp - 1,
-        EXAMPLE_STATE_ROOT // example stateRoot
+        '', // blank stateRoot
+        3,
+        6
       )
+      const receipt = await batchSubmitter.submitNextBatch()
+      const logData = remove0x(receipt.logs[1].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(8) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
+    })
+
+    it('should submit a small batch only after the timeout', async () => {
+      l2Provider.setNumBlocksToReturn(2)
+
+      // Create a batch submitter with a long timeout & make sure it doesn't submit the batches one after another
+      const longTimeout = 10_000
+      batchSubmitter = createBatchSubmitter(longTimeout)
+      let receipt = await batchSubmitter.submitNextBatch()
+      expect(receipt).to.not.be.undefined
+      receipt = await batchSubmitter.submitNextBatch()
+      // The receipt should be undefined because that means it didn't submit
+      expect(receipt).to.be.undefined
+
+      // This time create a batch submitter with a short timeout & it should submit batches after the timeout is reached
+      const shortTimeout = 5
+      batchSubmitter = createBatchSubmitter(shortTimeout)
+      receipt = await batchSubmitter.submitNextBatch()
+      expect(receipt).to.not.be.undefined
+      // Sleep for the short timeout
+      await new Promise((r) => setTimeout(r, shortTimeout))
+      receipt = await batchSubmitter.submitNextBatch()
+      // The receipt should NOT be undefined because that means it successfully submitted!
+      expect(receipt).to.not.be.undefined
+    })
+
+    it('should not submit if gas price is over threshold', async () => {
+      l2Provider.setNumBlocksToReturn(2)
+      l2Provider.setL2BlockData({
+        queueOrigin: QueueOrigin.L1ToL2,
+      } as any)
+
+      const highGasPriceWei = BigNumber.from(200).mul(1_000_000_000)
+
+      sinon
+        .stub(sequencer, 'getGasPrice')
+        .callsFake(async () => highGasPriceWei)
+
+      const receipt = await batchSubmitter.submitNextBatch()
+      expect(sequencer.getGasPrice).to.have.been.calledOnce
+      expect(receipt).to.be.undefined
+    })
+
+    it('should submit if gas price is not over threshold', async () => {
+      l2Provider.setNumBlocksToReturn(2)
+
+      const lowGasPriceWei = BigNumber.from(2).mul(1_000_000_000)
+
+      sinon.stub(sequencer, 'getGasPrice').callsFake(async () => lowGasPriceWei)
+
+      const receipt = await batchSubmitter.submitNextBatch()
+      expect(sequencer.getGasPrice).to.have.been.calledOnce
+      expect(receipt).to.not.be.undefined
+    })
+  })
+
+  describe('Submit state batch', () => {
+    let txBatchSubmitter
+    let stateBatchSubmitter
+    beforeEach(async () => {
+      await deployContracts()
+
+      const sequencerTx = {
+        rawTransaction: '0x1234',
+        txType: TxType.EIP155,
+        queueOrigin: QueueOrigin.Sequencer,
+        l1TxOrigin: null,
+      }
+      const chain = Array(5).fill(sequencerTx)
+      l2Provider.setNumBlocksToReturn(5)
+      await generateL2Chain(chain)
+
+      txBatchSubmitter = createBatchSubmitter(0)
 
       // submit a batch of transactions to enable state batch submission
       await txBatchSubmitter.submitNextBatch()
@@ -451,19 +448,18 @@ describe('BatchSubmitter', () => {
       )
     })
 
-    describe('submitNextBatch', () => {
-      it('should submit a state batch after a transaction batch', async () => {
-        const receipt = await stateBatchSubmitter.submitNextBatch()
-        expect(receipt).to.not.be.undefined
+    it('should submit a state batch after a transaction batch', async () => {
+      // console.log((await OVM_StateCommitmentChain.getTotalElements()).toNumber())
+      const receipt = await stateBatchSubmitter.submitNextBatch()
+      expect(receipt).to.not.be.undefined
 
-        const iface = new ethers.utils.Interface(scc.abi)
-        const parsedLogs = iface.parseLog(receipt.logs[0])
+      const iface = new ethers.utils.Interface(scc.abi)
+      const parsedLogs = iface.parseLog(receipt.logs[0])
 
-        expect(parsedLogs.eventFragment.name).to.eq('StateBatchAppended')
-        expect(parsedLogs.args._batchIndex.toNumber()).to.eq(0)
-        expect(parsedLogs.args._batchSize.toNumber()).to.eq(6)
-        expect(parsedLogs.args._prevTotalElements.toNumber()).to.eq(0)
-      })
+      expect(parsedLogs.eventFragment.name).to.eq('StateBatchAppended')
+      expect(parsedLogs.args._batchIndex.toNumber()).to.eq(0)
+      expect(parsedLogs.args._batchSize.toNumber()).to.eq(6)
+      expect(parsedLogs.args._prevTotalElements.toNumber()).to.eq(0)
     })
   })
 })

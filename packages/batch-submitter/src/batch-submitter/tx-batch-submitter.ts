@@ -2,7 +2,10 @@
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractInterface, getContractFactory } from '@eth-optimism/contracts'
+import {
+  getContractInterface,
+  getContractFactory,
+} from '@eth-optimism/contracts'
 import {
   L2Block,
   RollupInfo,

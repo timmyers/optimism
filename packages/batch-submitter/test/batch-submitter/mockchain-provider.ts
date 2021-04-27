@@ -33,12 +33,15 @@ export class MockchainProvider extends providers.JsonRpcProvider {
 
   constructor(ctcAddr: string, sccAddr: string) {
     super('https://optimism.io')
-    for (const block of BLOCKS) {
+    const now = Math.floor(new Date().getTime() / 1000)
+    for (let i = 0; i < BLOCKS.length; i++) {
+      const block = BLOCKS[i]
       if (block.number === 0) {
         // No need to convert genesis to an L2Block because it has no txs
         this.mockBlocks.push(block)
         continue
       }
+      block.timestamp = now + i
       this.mockBlocks.push(this._toL2Block(block))
       this.ctcAddr = ctcAddr
       this.sccAddr = sccAddr
@@ -108,6 +111,14 @@ export class MockchainProvider extends providers.JsonRpcProvider {
       }
       this.mockBlocks[i].stateRoot = stateRoot
     }
+  }
+
+  public setL2BlockTx(i: number, tx, timestamp?: number) {
+    this.mockBlocks[i].transactions[0] = {
+      ...this.mockBlocks[i].transactions[0],
+      ...tx,
+    }
+    if (timestamp) this.mockBlocks[i].timestamp = timestamp
   }
 
   public async getBlockWithTransactions(blockNumber: number): Promise<L2Block> {
