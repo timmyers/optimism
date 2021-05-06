@@ -9,7 +9,7 @@ const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
 const config: HardhatUserConfig = {
   mocha: {
-    timeout: 100000,
+    timeout: parseInt(process.env.TIMEOUT) || 100000,
   },
   networks: {
     optimism: {

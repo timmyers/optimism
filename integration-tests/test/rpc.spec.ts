@@ -18,10 +18,11 @@ describe('Basic RPC tests', () => {
   }
 
   const provider = injectL2Context(l2Provider)
-  const wallet = Wallet.createRandom().connect(provider)
+  let wallet: Wallet
 
   before(async () => {
     env = await OptimismEnv.new()
+    wallet = env.l2Wallet
   })
 
   describe('eth_sendRawTransaction', () => {
@@ -59,17 +60,17 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
 
-    it('should not accept a transaction with a value', async () => {
-      const tx = {
+    it('should accept a transaction with a value', async () => {
+      let tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await wallet.getChainId(),
         value: 100,
+        nonce: await wallet.getTransactionCount(),
       }
-      await expect(
-        provider.sendTransaction(await wallet.signTransaction(tx))
-      ).to.be.rejectedWith(
-        'Cannot send transaction with non-zero value. Use WETH.transfer()'
-      )
+      tx.gasLimit = (await wallet.estimateGas(tx)).toNumber()
+      const submittedTx = await provider.sendTransaction(await wallet.signTransaction(tx))
+      const receipt = await submittedTx.wait()
+      console.log({submittedTx, receipt})
     })
   })
 
@@ -137,7 +138,7 @@ describe('Basic RPC tests', () => {
   describe('eth_chainId', () => {
     it('should get the correct chainid', async () => {
       const { chainId } = await provider.getNetwork()
-      expect(chainId).to.be.eq(420)
+      expect(chainId).to.be.eq(env.chainId)
     })
   })
 

@@ -29,7 +29,10 @@ const env = cleanEnv(process.env, {
   ADDRESS_MANAGER: str({
     default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   }),
+  CHAIN_ID: num({ default: 420 })
 })
+
+export const chainId = env.CHAIN_ID
 
 // The hardhat instance
 export const l1Provider = new providers.JsonRpcProvider(env.L1_URL)

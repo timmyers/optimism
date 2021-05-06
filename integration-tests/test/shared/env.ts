@@ -10,6 +10,7 @@ import {
   fundUser,
   getOvmEth,
   getGateway,
+  chainId,
 } from './utils'
 import {
   initWatcher,
@@ -38,6 +39,8 @@ export class OptimismEnv {
   l1Wallet: Wallet
   l2Wallet: Wallet
 
+  chainId: number
+
   constructor(args: any) {
     this.addressManager = args.addressManager
     this.gateway = args.gateway
@@ -48,6 +51,7 @@ export class OptimismEnv {
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
     this.ctc = args.ctc
+    this.chainId = chainId
   }
 
   static async new(): Promise<OptimismEnv> {

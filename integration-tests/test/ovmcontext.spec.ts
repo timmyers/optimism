@@ -39,7 +39,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     )
 
     OVMContextStorage = await OVMContextStorageFactory.deploy()
-    const receipt = await OVMContextStorage.deployTransaction.wait()
+    let receipt = await OVMContextStorage.deployTransaction.wait()
     address = OVMContextStorage.address
 
     const ctcAddress = await addressManager.getAddress(
@@ -63,8 +63,8 @@ describe('OVM Context: Layer 2 EVM Context', () => {
   })
 
   it('Enqueue: `block.number` and `block.timestamp` have L1 values', async () => {
-    for (let i = 0; i < 5; i++) {
-      const l2Tip = await L2Provider.getBlock('latest')
+    for (let i = 0; i < 2; i++) {
+      const l2Tip = await L2Provider.getBlockNumber()
       const tx = await CanonicalTransactionChain.enqueue(
         OVMContextStorage.address,
         500_000,
@@ -73,11 +73,11 @@ describe('OVM Context: Layer 2 EVM Context', () => {
 
       // Wait for the enqueue to be ingested
       while (true) {
-        const tip = await L2Provider.getBlock('latest')
-        if (tip.number === l2Tip.number + 1) {
+        const tip = await L2Provider.getBlockNumber()
+        if (tip === l2Tip + 1) {
           break
         }
-        await sleep(500)
+        await sleep(5000)
       }
 
       // Get the receipt
