@@ -21,6 +21,7 @@ library Lib_ExecutionManagerWrapper {
      * Performs a safe ovmCREATE call.
      * @param _bytecode Code for the new contract.
      * @return _contract Address of the created contract.
+     * @return Revert data, if and only if the creation threw an exception.
      */
     function ovmCREATE(
         bytes memory _bytecode
