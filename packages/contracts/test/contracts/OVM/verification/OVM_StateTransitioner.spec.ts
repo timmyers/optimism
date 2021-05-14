@@ -280,6 +280,7 @@ describe('OVM_StateTransitioner', () => {
     it('Blocks execution if insufficient gas provided', async () => {
       const gasLimit = 500_000
       const transaction = {
+        sender: constants.AddressZero,
         timestamp: '0x12',
         blockNumber: '0x34',
         l1QueueOrigin: '0x00',
@@ -292,6 +293,7 @@ describe('OVM_StateTransitioner', () => {
       const transactionHash = ethers.utils.keccak256(
         ethers.utils.solidityPack(
           [
+            'address',
             'uint256',
             'uint256',
             'uint8',
@@ -301,6 +303,7 @@ describe('OVM_StateTransitioner', () => {
             'bytes',
           ],
           [
+            transaction.sender,
             transaction.timestamp,
             transaction.blockNumber,
             transaction.l1QueueOrigin,

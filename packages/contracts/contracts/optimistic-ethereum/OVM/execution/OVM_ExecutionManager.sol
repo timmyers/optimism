@@ -1718,6 +1718,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
         messageRecord.nuisanceGasLeft = _getNuisanceGasLimit(_transaction.gasLimit);
+
+        messageContext.ovmCALLER = _transaction.sender;
     }
 
     /**

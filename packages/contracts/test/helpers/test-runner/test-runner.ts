@@ -322,6 +322,7 @@ export class ExecutionManagerTestRunner {
 
       const toRun = this.contracts.OVM_ExecutionManager.run(
         {
+          sender: ethers.constants.AddressZero,
           timestamp: step.functionParams.timestamp,
           blockNumber: 0,
           l1QueueOrigin: step.functionParams.queueOrigin,

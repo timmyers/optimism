@@ -58,43 +58,6 @@ func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
 	return outputmsg, nil
 }
 
-func AsOvmMessage(tx *types.Transaction, signer types.Signer, decompressor common.Address, gasLimit uint64) (Message, error) {
-	msg, err := tx.AsMessage(signer)
-	if err != nil {
-		// This should only be allowed to pass if the transaction is in the ctc
-		// already. The presence of `Index` should specify this.
-		index := tx.GetMeta().Index
-		if index == nil {
-			return msg, fmt.Errorf("Cannot convert tx to message in asOvmMessage: %w", err)
-		}
-	}
-
-	// Queue origin L1ToL2 transactions do not go through the
-	// sequencer entrypoint. The calldata is expected to be in the
-	// correct format when deserialized from the EVM events, see
-	// rollup/sync_service.go.
-	qo := msg.QueueOrigin()
-	if qo != nil && qo.Uint64() == uint64(types.QueueOriginL1ToL2) {
-		return msg, nil
-	}
-
-	// Sequencer transactions get sent to the "sequencer entrypoint," a contract that decompresses
-	// the incoming transaction data.
-	outmsg, err := modMessage(
-		msg,
-		msg.From(),
-		&decompressor,
-		tx.GetMeta().RawTransaction,
-		gasLimit,
-	)
-
-	if err != nil {
-		return msg, fmt.Errorf("Cannot mod message: %w", err)
-	}
-
-	return outmsg, nil
-}
-
 func EncodeSimulatedMessage(msg Message, timestamp, blockNumber *big.Int, executionManager, stateManager dump.OvmDumpAccount) (Message, error) {
 	to := msg.To()
 	if to == nil {

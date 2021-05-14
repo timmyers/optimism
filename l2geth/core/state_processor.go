@@ -17,6 +17,8 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -89,10 +91,14 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 			return nil, err
 		}
 	} else {
-		decompressor := config.StateDump.Accounts["OVM_SequencerEntrypoint"]
-		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor.Address, header.GasLimit)
+		msg, err = tx.AsMessage(types.MakeSigner(config, header.Number))
 		if err != nil {
-			return nil, err
+			// This should only be allowed to pass if the transaction is in the ctc
+			// already. The presence of `Index` should specify this.
+			index := tx.GetMeta().Index
+			if index == nil {
+				return nil, fmt.Errorf("Cannot convert tx to message in asOvmMessage: %w", err)
+			}
 		}
 	}
 	// Create a new context to be used in the EVM environment

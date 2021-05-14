@@ -31,6 +31,7 @@ const QUEUE_ORIGIN = {
 }
 
 const DUMMY_TRANSACTION = {
+  sender: NON_ZERO_ADDRESS,
   timestamp: 111111111111,
   blockNumber: 20,
   l1QueueOrigin: QUEUE_ORIGIN.SEQUENCER_QUEUE,
@@ -110,7 +111,7 @@ describe('OVM_ExecutionManager gas consumption', () => {
       )
       console.log(`calculated gas cost of ${gasCost}`)
 
-      const benchmark: number = 106_000
+      const benchmark: number = 119_000
       expect(gasCost).to.be.lte(benchmark)
       expect(gasCost).to.be.gte(
         benchmark - 1_000,

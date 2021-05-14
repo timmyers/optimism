@@ -1,6 +1,7 @@
 import { constants, ethers } from 'ethers'
 
 export interface Transaction {
+  sender: string
   timestamp: number
   blockNumber: number
   l1QueueOrigin: number
@@ -14,6 +15,7 @@ export const DUMMY_OVM_TRANSACTIONS: Array<Transaction> = [
   ...Array(10).keys(),
 ].map((i) => {
   return {
+    sender: constants.AddressZero,
     timestamp: i,
     blockNumber: 0,
     l1QueueOrigin: 0,
@@ -25,6 +27,7 @@ export const DUMMY_OVM_TRANSACTIONS: Array<Transaction> = [
 })
 
 export const hashTransaction = ({
+  sender,
   timestamp,
   blockNumber,
   l1QueueOrigin,
@@ -34,8 +37,18 @@ export const hashTransaction = ({
   data,
 }: Transaction): string => {
   return ethers.utils.solidityKeccak256(
-    ['uint256', 'uint256', 'uint8', 'address', 'address', 'uint256', 'bytes'],
     [
+      'address',
+      'uint256',
+      'uint256',
+      'uint8',
+      'address',
+      'address',
+      'uint256',
+      'bytes',
+    ],
+    [
+      sender,
       timestamp,
       blockNumber,
       l1QueueOrigin,

@@ -57,6 +57,7 @@ library Lib_OVMCodec {
     }
 
     struct Transaction {
+        address sender;
         uint256 timestamp;
         uint256 blockNumber;
         QueueOrigin l1QueueOrigin;
@@ -100,6 +101,7 @@ library Lib_OVMCodec {
         )
     {
         return abi.encodePacked(
+            _transaction.sender,
             _transaction.timestamp,
             _transaction.blockNumber,
             _transaction.l1QueueOrigin,
