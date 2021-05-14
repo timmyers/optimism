@@ -216,12 +216,6 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_StateTransitionerFactory'),
       params: [AddressManager.address],
     },
-    OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
-    },
-    OVM_SequencerEntrypoint: {
-      factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
-    },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),
       params: [AddressManager.address],
@@ -247,9 +241,6 @@ export const makeContractDeployConfig = async (
     },
     ERC1820Registry: {
       factory: getContractFactory('ERC1820Registry'),
-    },
-    OVM_ProxyEOA: {
-      factory: getContractFactory('OVM_ProxyEOA', undefined, true),
     },
   }
 }

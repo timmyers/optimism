@@ -18,17 +18,6 @@ of a message on L2. The L1 Cross Domain Messenger performs this proof in its
 \_verifyStorageProof function, which verifies the existence of the transaction hash in this
 contract's `sentMessages` mapping.
 
-### OVM_ProxySequencerEntrypoint
-
-The Proxy Sequencer Entrypoint is a predeployed proxy to the implementation of the
-Sequencer Entrypoint. This will enable the Optimism team to upgrade the Sequencer Entrypoint
-contract.
-
-### OVM_SequencerEntrypoint
-
-It accepts a more efficient compressed calldata format, which it decompresses and encodes to the standard EIP155 transaction format.
-This contract is the implementation referenced by the Proxy Sequencer Entrypoint, thus enabling the Optimism team to upgrade the decompression of calldata from the Sequencer.
-
 ### ERC1820Registry
 
 This contract has been included as a popular standard which MUST be deployed at a specific address using CREATE2. This is not achievable in the OVM as the bytecode will not be a perfect match.

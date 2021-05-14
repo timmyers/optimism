@@ -113,15 +113,6 @@ interface iOVM_ExecutionManager {
     function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external returns (address _contract, bytes memory _revertdata);
 
 
-    /*******************************
-     * Account Abstraction Opcodes *
-     ******************************/
-
-    function ovmGETNONCE() external returns (uint256 _nonce);
-    function ovmINCREMENTNONCE() external;
-    function ovmCREATEEOA(bytes32 _messageHash, uint8 _v, bytes32 _r, bytes32 _s) external;
-
-
     /****************************
      * Contract Calling Opcodes *
      ****************************/
