@@ -99,7 +99,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 10_000_000,
+      maxTransactionGasLimit: 11_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
@@ -140,10 +140,12 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'L2ChugSplashDeployer',
       'L2ChugSplashOwner',
       'OVM_UpgradeExecutor',
+      'OVM_GasPriceOracle',
     ],
     deployOverrides: {},
     waitForReceipts: false,
     l2ChugSplashDeployerOwner: cfg.l2ChugSplashDeployerOwner,
+    gasPriceOracleOwner: cfg.gasPriceOracleOwner,
   }
 
   config = { ...config, ...cfg }
@@ -161,6 +163,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'L2ChugSplashDeployer',
     'L2ChugSplashOwner',
     'OVM_UpgradeExecutor',
+    'OVM_GasPriceOracle',
   ]
 
   const deploymentResult = await deploy(config)
